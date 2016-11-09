@@ -92,43 +92,43 @@ def draw_lines(img, lines, color=[255, 0, 0], thickness=2):
     left_points = []
     right_points= []
 
-
     for line in lines:
         for x1,y1,x2,y2 in line:
             slope = (y2 - y1)/(x2 - x1)
 
-            if abs(slope) < 0.42:
+            if abs(slope) < 0.4:
                continue
-
             if slope < 0:
               left_points.append((x1,y1))
               left_points.append((x2,y2))
             else:
               right_points.append((x1,y1))
               right_points.append((x2,y2))
-
-    sorted_left = sorted(left_points, key=lambda arr: arr[1])
-    sorted_right = sorted(right_points, key=lambda arr: arr[1])
-
-    left  = np.array(sorted_left)
-    right = np.array(sorted_right)
-
+    # The lines are less fragmented when the lines are sorted.
+    left  = sort_points(left_points)
+    right = sort_points(right_points)
+    # Detecting  the left lane
     if len(left) > 0 :
       draw_lane_lines(color, img, left, thickness)
-
+    # Detecting the right lane
     if len(right) > 0 :
       draw_lane_lines(color, img, right, thickness)
+
+
+def sort_points(points):
+    # Sorted by the y points
+    return np.array(sorted(points, key=lambda arr: arr[1]))
 
 
 def draw_lane_lines(color, img, points, thickness):
     x = points[:, 0]
     y = points[:, 1]
-    z = np.polyfit(x, y, 1)
+    z = np.polyfit(x, y, deg=1)
     k = np.poly1d(z)
-    x_updated = np.linspace(x[0], x[-1], 50, dtype=int)
+    x_updated = np.linspace(x[0], x[-1], 75, dtype=int)
     y_updated = k(x_updated).astype(int)
     lines = list(zip(x_updated, y_updated))
-    for index in range(1, len(x_updated)):
+    for index in range(1, len(lines)):
         cv2.line(img, lines[index - 1], lines[index], color, thickness)
 
 
@@ -169,7 +169,7 @@ def list_test_images(path):
 
 
 def write_video_file():
-    white_output = '/home/pawan/Github/CarND-LaneLines-P1/whitel1.mp4'
+    white_output = '/home/pawan/Github/CarND-LaneLines-P1/whitel.mp4'
     clip1 = VideoFileClip("/home/pawan/Github/CarND-LaneLines-P1/solidYellowLeft.mp4")
     white_clip = clip1.fl_image(process_image) # NOTE: this function expects color images!!
     white_clip.write_videofile(white_output, audio=False)
@@ -181,16 +181,22 @@ def process_image(image):
     # you should return the final output (image with lines are drawn on lanes)
     # Parameters values
     kernel_size = 5
-    low_threshold = 90
+    low_threshold = 85
     high_threshold = 180
     rho = 2               # distance resolution in pixels of the Hough grid
     theta = np.pi/180     # angular resolution in radians of the Hough grid
-    threshold = 10         # minimum number of votes (intersections in Hough grid cell)
-    min_line_length = 30  # minimum number of pixels making up a line
-    max_line_gap = 15     # maximum gap in pixels between connectable line segments
+    threshold = 15         # minimum number of votes (intersections in Hough grid cell)
+    min_line_length = 40  # minimum number of pixels making up a line
+    max_line_gap = 20     # maximum gap in pixels between connectable line segments
     # Loading the image
     img_shape = image.shape
-    vertices = np.array([[(0,img_shape[0]),((img_shape[1]/2)- 20, img_shape[0]*3/5 ),((img_shape[1]/2)+20,img_shape[0]*3/5),(img_shape[1],img_shape[0])]], dtype=np.int32)
+    # Co-ordinates of a polygon
+    x1, y1 = 0, img_shape[0]
+    x2, y2 = (img_shape[1]/2)- 20, img_shape[0]*0.6
+    x3, y3 = (img_shape[1]/2)+ 20, img_shape[0]*0.6
+    x4, y4 = img_shape[1],img_shape[0]
+    # Vertices of a polygon
+    vertices = np.array([[(x1,y1),(x2, y2 ),(x3, y3),(x4, y4)]], dtype=np.int32)
     # Extract the gray scale image from the original image
     gray = grayscale(image)
     # Removing noise from the gray scale image
@@ -202,6 +208,7 @@ def process_image(image):
     masked_edges = region_of_interest(edges, vertices)
     line_image = hough_lines(masked_edges, rho, theta, threshold, min_line_length, max_line_gap)
     line_edges = weighted_img(line_image, image)
+    lines_edges = cv2.medianBlur(line_edges, kernel_size)
     # display_image(line_edges)
     return line_edges
 
